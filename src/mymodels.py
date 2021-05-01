@@ -8,28 +8,27 @@ from torch.nn.init import xavier_uniform_
 # https://medium.com/@martinpella/how-to-use-pre-trained-word-embeddings-in-pytorch-71ca59249f76
 
 
-def create_emb_layer(weights_matrix, non_trainable=False):
-    num_embeddings, embedding_dim = weights_matrix.size()
-    emb_layer = nn.Embedding(num_embeddings, embedding_dim)
-    emb_layer.load_state_dict({'weight': weights_matrix})
-    if non_trainable:
-        emb_layer.weight.requires_grad = False
-
-    return emb_layer, num_embeddings, embedding_dim
-
+def load_embeddings(weights, non_trainable=True):
+    num_embeddings, embedding_dimensions = weights.size()
+    emb_layer = nn.Embedding(num_embeddings, embedding_dimensions)
+    emb_layer.load_state_dict({'weight': weights})
+    emb_layer.weight.requires_grad = not non_trainable
+    return emb_layer, num_embeddings, embedding_dimensions
 
 class CNNAttn(nn.Module):
     def __init__(self, num_output_categories, weights_matrix, num_filters=50, kernel_size=10):
         super(CNNAttn, self).__init__()
-        self.embeddings, num_embeddings, embedding_dim = create_emb_layer(
+        self.embeddings, num_embeddings, embedding_dim = load_embeddings(
             weights_matrix, non_trainable=True)
-		# https://discuss.pytorch.org/t/how-to-keep-the-shapebaias-of-input-and-output-same-when-dilation-conv/14338
-        padding=int(floor(kernel_size / 2))
-        self.conv = nn.Conv1d(embedding_dim, num_filters,kernel_size, padding=padding)
+        # https://discuss.pytorch.org/t/how-to-keep-the-shapebaias-of-input-and-output-same-when-dilation-conv/14338
+        padding = int(floor(kernel_size / 2))
+        self.conv = nn.Conv1d(embedding_dim, num_filters,
+                              kernel_size, padding=padding)
         # hitting nans in F1 score
         xavier_uniform_(self.conv.weight)
         # removing bias for simple matrix multiplication
-        self.upscaling = nn.Linear(num_filters, num_output_categories,bias=False)
+        self.upscaling = nn.Linear(
+            num_filters, num_output_categories, bias=False)
         xavier_uniform_(self.upscaling.weight)
         self.output = nn.Linear(num_filters, num_output_categories)
         xavier_uniform_(self.output.weight)
@@ -37,9 +36,9 @@ class CNNAttn(nn.Module):
     def forward(self, input_tuple):
         seqs, lengths = input_tuple
         # [16, 2459, 1]
-        
+
         x = self.embeddings(seqs.squeeze(2))
-		# 1000 should never be reduced
+        # 1000 should never be reduced
         # [16, 1000,7]
         x = x.permute(0, 2, 1)
         # [16, 7, 1000]
@@ -53,22 +52,22 @@ class CNNAttn(nn.Module):
         # https://stackoverflow.com/questions/61292150/breaking-down-a-batch-in-pytorch-leads-to-different-results-why
         # there is a slight numeric change in 5th floating point.
         x_branch = self.upscaling(x)
-        x_branch = x_branch.permute(0,2,1)
+        x_branch = x_branch.permute(0, 2, 1)
         # tensor(156626.1562, device='cuda:0', grad_fn=<SumBackward0>)
         # [16, 8929, 1000]
         # calculating alpha
-        
+
         alpha = torch.softmax(x_branch, dim=2)
         # (Pdb) alpha.size()
         # torch.Size([16, 8929, 1000])
 
-		# torch.Size([16, 1000, 8929])
-		# alpha.sum(axis=0)[0]
+        # torch.Size([16, 1000, 8929])
+        # alpha.sum(axis=0)[0]
         # alpha.sum(axis=1)[0]
-        # alpha.sum(axis=2)[0] 
+        # alpha.sum(axis=2)[0]
         # Pdb) alpha.sum(axis=2)[0]
         # tensor([1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0
-        #axis 2 has all 1.
+        # axis 2 has all 1.
         # axis 2 is lossy representation of n gram.
         # weighted sum on n grams
         # (Pdb) alpha.size()
@@ -82,11 +81,11 @@ class CNNAttn(nn.Module):
         # https://stackoverflow.com/questions/51980654/pytorch-element-wise-filter-layer
         weighted_output = (self.output.weight*modified_n_gram)
         # torch.Size([16, 8929, 50])
-        # This can also be bypassed, as we already have the shape. 
+        # This can also be bypassed, as we already have the shape.
         # Keeping it for added model capacity
-        weighted_sum=weighted_output.sum(dim=2)
+        weighted_sum = weighted_output.sum(dim=2)
         # torch.Size([16, 8929])
-		# weighted_sum.sum(axis=0)
+        # weighted_sum.sum(axis=0)
         # weighted_sum.sum(axis=1)
         # weighted_sum.sum(axis=2)
         return weighted_sum
@@ -97,7 +96,7 @@ class testGRU(nn.Module):
         # initialized everything from nn.module
         super(testGRU, self).__init__()
         # Bidirection GRU
-        self.embeddings, num_embeddings, embedding_dim = create_emb_layer(
+        self.embeddings, num_embeddings, embedding_dim = load_embeddings(
             weights_matrix, non_trainable=True)
         self.GRUCell = nn.GRU(input_size=weights_matrix.size()[
                               1], hidden_size=16, num_layers=1, batch_first=True, bidirectional=True)
@@ -135,15 +134,16 @@ class testGRU(nn.Module):
 
         return x
 
+
 class testLSTM(nn.Module):
     def __init__(self, weights_matrix, num_categories):
         # initialized everything from nn.module
         super(testLSTM, self).__init__()
 
-        self.embeddings, num_embeddings, embedding_dim = create_emb_layer(
+        self.embeddings, num_embeddings, embedding_dim = load_embeddings(
             weights_matrix, non_trainable=True)
         self.LSTMCell = nn.LSTM(input_size=weights_matrix.size()[
-                              1], hidden_size=32, num_layers=1, batch_first=True, bidirectional=False)
+            1], hidden_size=32, num_layers=1, batch_first=True, bidirectional=False)
         self.FullyConnectedOutput = nn.Linear(
             in_features=32, out_features=num_categories)
 
