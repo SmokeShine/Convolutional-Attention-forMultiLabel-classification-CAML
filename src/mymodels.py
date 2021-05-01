@@ -26,9 +26,13 @@ class CNNAttn(nn.Module):
 		# https://discuss.pytorch.org/t/how-to-keep-the-shapebaias-of-input-and-output-same-when-dilation-conv/14338
         padding=int(floor(kernel_size / 2))
         self.conv = nn.Conv1d(embedding_dim, num_filters,kernel_size, padding=padding)
+        # hitting nans in F1 score
+        xavier_uniform_(self.conv.weight)
         # removing bias for simple matrix multiplication
         self.upscaling = nn.Linear(num_filters, num_output_categories,bias=False)
+        xavier_uniform_(self.upscaling.weight)
         self.output = nn.Linear(num_filters, num_output_categories)
+        xavier_uniform_(self.output.weight)
 
     def forward(self, input_tuple):
         seqs, lengths = input_tuple
@@ -92,11 +96,11 @@ class testGRU(nn.Module):
     def __init__(self, weights_matrix, num_categories):
         # initialized everything from nn.module
         super(testGRU, self).__init__()
-
+        # Bidirection GRU
         self.embeddings, num_embeddings, embedding_dim = create_emb_layer(
             weights_matrix, non_trainable=True)
         self.GRUCell = nn.GRU(input_size=weights_matrix.size()[
-                              1], hidden_size=32, num_layers=1, batch_first=True, bidirectional=False)
+                              1], hidden_size=16, num_layers=1, batch_first=True, bidirectional=True)
         self.FullyConnectedOutput = nn.Linear(
             in_features=32, out_features=num_categories)
 

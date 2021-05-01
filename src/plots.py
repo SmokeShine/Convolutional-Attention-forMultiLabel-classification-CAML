@@ -18,15 +18,16 @@ def plot_learning_curves(train_losses, valid_losses, train_accuracies, valid_acc
 
 	pd.Series(train_accuracies).plot(title='Loss', label='Train',ax=ax[1])
 	pd.Series(valid_accuracies).plot(title='Loss', label='Validation',ax=ax[1])
-
+	ax[0].title.set_text(model_name)
+	ax[1].title.set_text(model_name)
 	ax[0].set_xlabel("epoch")
 	ax[1].set_xlabel("epoch")
 
 	ax[0].set_ylabel("Loss")
-	ax[1].set_ylabel("Accuracy")
+	ax[1].set_ylabel("Macro AUC ROC")
 
-	ax[0].legend(loc='lower left')
-	ax[1].legend(loc='lower left')
+	ax[0].legend(loc='upper right')
+	ax[1].legend(loc='lower right')
 	plt.tight_layout()
 	plt.savefig(f'learning_curves_{model_name}.png')
 
