@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import argparse
+import collections
 import logging
 import logging.config
 import os
@@ -614,6 +615,10 @@ def top_k_predictions(logger, prediction_samples, test_results_cnn,
                       reverse_icd_index_dict,
                       reverse_vocab_dict,
                       sample_test):
+    if prediction_samples==-1:prediction_samples=len(sample_test)
+    cnn_concat=[]
+    gru_concat=[]
+    lstm_concat=[]
     for sample_test_, sample_cnn, sample_gru, sample_lstm in zip(sample_test[0:prediction_samples],
                                                                  test_results_cnn[0:prediction_samples],
                                                                  test_results_gru[0:prediction_samples],
@@ -626,14 +631,24 @@ def top_k_predictions(logger, prediction_samples, test_results_cnn,
             reverse_icd_index_dict.get(code,"-") for code in sample_gru)
         lstm_prediction = ','.join(
             reverse_icd_index_dict.get(code,"-") for code in sample_lstm)
+        cnn_concat.extend(sample_cnn)
+        gru_concat.extend(sample_gru)
+        lstm_concat.extend(sample_lstm)
         logger.info(f"{sentence[0:100]}...")
         logger.info("ICD9_CODE Predictions")
         logger.info(f"cnn_prediction:\t{cnn_prediction}")
         logger.info(f"gru_prediction:\t{gru_prediction}")
         logger.info(f"lstm_prediction:\t{lstm_prediction}\n")
-        
-
-
+    counter_cnn=collections.Counter(cnn_concat)   
+    counter_gru=collections.Counter(gru_concat)   
+    counter_lstm=collections.Counter(lstm_concat)   
+    top_cnn_code = sorted(counter_cnn, key=counter_cnn.get, reverse=True)[:5]
+    top_gru_code = sorted(counter_gru, key=counter_gru.get, reverse=True)[:5]
+    top_lstm_code = sorted(counter_lstm, key=counter_lstm.get, reverse=True)[:5]
+    top_cnn_code_icd=','.join(reverse_icd_index_dict.get(code,"-") for code in top_cnn_code)
+    top_gru_code_icd=','.join(reverse_icd_index_dict.get(code,"-") for code in top_gru_code)
+    top_lstm_code_icd=','.join(reverse_icd_index_dict.get(code,"-") for code in top_lstm_code)
+    
 if __name__ == '__main__':
     args = parse_args()
     logger.info(args)
